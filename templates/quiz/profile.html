@@ -1,0 +1,247 @@
+{% extends 'base.html' %}
+{% load quiz_filters %}
+
+{% block title %}Profile - ExamPrepQuiz{% endblock %}
+
+{% block content %}
+<h2 class="mb-4"><i class="bi bi-person-circle"></i> Profile</h2>
+
+<div class="row mb-4">
+    <div class="col-12 col-md-3 mb-3 mb-md-0">
+        <div class="card text-center">
+            <div class="card-body">
+                <!-- Profile Photo -->
+                <div class="mb-3">
+                    {% if user_profile.profile_photo %}
+                        <img src="{{ user_profile.profile_photo.url }}" alt="Profile Photo" 
+                             class="rounded-circle" style="width: 120px; height: 120px; object-fit: cover; border: 3px solid #0d6efd;">
+                    {% else %}
+                        <i class="bi bi-person-circle" style="font-size: 5rem; color: #0d6efd;"></i>
+                    {% endif %}
+                </div>
+                <h4 class="mt-3">{{ user.get_full_name|default:user.username }}</h4>
+                <p class="text-muted">{{ user.email|default:"No email provided" }}</p>
+                <a href="{% url 'edit_profile' %}" class="btn btn-sm btn-outline-primary mt-2">
+                    <i class="bi bi-pencil-square"></i> Edit Profile
+                </a>
+                
+                <!-- Subscription Plan Badge -->
+                <div class="mt-3">
+                    {% if user_profile.subscription_plan == 'premium' %}
+                    <span class="badge bg-warning text-dark" style="font-size: 1rem; padding: 8px 16px;">
+                        <i class="bi bi-star-fill"></i> Premium Plan
+                    </span>
+                    {% else %}
+                    <span class="badge bg-secondary" style="font-size: 1rem; padding: 8px 16px;">
+                        <i class="bi bi-person"></i> Basic Plan
+                    </span>
+                    {% endif %}
+                </div>
+                
+                <!-- Token Balance -->
+                <div class="mt-3">
+                    <div class="card border-info">
+                        <div class="card-body p-3 text-center">
+                            <i class="bi bi-coin" style="font-size: 1.5rem; color: #0dcaf0;"></i>
+                            <h5 class="mt-2 mb-0">{{ user_profile.tokens }}</h5>
+                            <small class="text-muted">Tokens Available</small>
+                            <div class="mt-2">
+                                <small class="text-muted">
+                                    <i class="bi bi-info-circle"></i> AI Assistant: 1 token per request
+                                </small>
+                                <br>
+                                <small class="text-success">
+                                    <i class="bi bi-gift"></i> Daily bonus: 10 tokens per day
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Subscription Action Buttons -->
+                <div class="mt-3">
+                    {% if user_profile.subscription_plan == 'basic' %}
+                    <a href="{% url 'upgrade_subscription' %}" class="btn btn-warning btn-sm w-100" onclick="return confirm('Are you sure you want to upgrade to Premium plan?');">
+                        <i class="bi bi-arrow-up-circle"></i> Upgrade to Premium
+                    </a>
+                    {% else %}
+                    <a href="{% url 'downgrade_subscription' %}" class="btn btn-outline-secondary btn-sm w-100" onclick="return confirm('Are you sure you want to downgrade to Basic plan? You will lose Premium features.');">
+                        <i class="bi bi-arrow-down-circle"></i> Downgrade to Basic
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Subscription Features Card (Collapsible) -->
+        <div class="card mt-3">
+            <div class="card-header bg-info text-white" style="cursor: pointer;" 
+                 data-bs-toggle="collapse" 
+                 data-bs-target="#planFeaturesCollapse" 
+                 aria-expanded="false" 
+                 aria-controls="planFeaturesCollapse"
+                 onclick="togglePlanFeaturesIcon()">
+                <h6 class="mb-0">
+                    <i class="bi bi-info-circle"></i> Plan Features
+                    <i class="bi bi-chevron-down float-end" id="planFeaturesIcon"></i>
+                </h6>
+            </div>
+            <div class="collapse" id="planFeaturesCollapse">
+                <div class="card-body">
+                    <h6 class="mb-2">Basic Plan:</h6>
+                    <ul class="list-unstyled small mb-3">
+                        <li><i class="bi bi-check-circle text-success"></i> Access to all quizzes</li>
+                        <li><i class="bi bi-check-circle text-success"></i> Bookmark questions</li>
+                        <li><i class="bi bi-check-circle text-success"></i> View quiz results</li>
+                        <li><i class="bi bi-check-circle text-success"></i> Track progress</li>
+                    </ul>
+                    
+                    <h6 class="mb-2">Premium Plan:</h6>
+                    <ul class="list-unstyled small">
+                        <li><i class="bi bi-check-circle text-warning"></i> Everything in Basic</li>
+                        <li><i class="bi bi-check-circle text-warning"></i> AI Assistant access</li>
+                        <li><i class="bi bi-check-circle text-warning"></i> Priority support</li>
+                        <li><i class="bi bi-check-circle text-warning"></i> Advanced analytics</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-9">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Statistics</h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-6 col-md-3 mb-3 mb-md-0">
+                        <h3 class="text-primary">{{ total_quizzes }}</h3>
+                        <p class="text-muted">Quizzes Completed</p>
+                    </div>
+                    <div class="col-6 col-md-3 mb-3 mb-md-0">
+                        <h3 class="text-success">{{ total_questions }}</h3>
+                        <p class="text-muted">Questions Answered</p>
+                    </div>
+                    <div class="col-6 col-md-3 mb-3 mb-md-0">
+                        <h3 class="text-info">{{ correct_answers }}</h3>
+                        <p class="text-muted">Correct Answers</p>
+                    </div>
+                    <div class="col-6 col-md-3 mb-3 mb-md-0">
+                        <h3 class="text-warning">{{ accuracy }}%</h3>
+                        <p class="text-muted">Overall Accuracy</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">Quiz History</h5>
+    </div>
+    <div class="card-body">
+        {% if quiz_history %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Exam</th>
+                        <th>Category</th>
+                        <th>Score</th>
+                        <th>Correct/Total</th>
+                        <th>Date</th>
+                        <th>Time</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for session in quiz_history %}
+                    <tr>
+                        <td>{{ session.exam.name }}</td>
+                        <td>{{ session.exam.category.name }}</td>
+                        <td>
+                            <span class="badge {% if session.score >= session.exam.passing_score %}bg-success{% else %}bg-danger{% endif %}">
+                                {{ session.score|floatformat:1 }}%
+                            </span>
+                        </td>
+                        <td>{{ session.correct_answers }}/{{ session.total_questions }}</td>
+                        <td>{{ session.completed_at|date:"M d, Y" }}</td>
+                        <td>{{ session.time_taken_seconds|format_time }}</td>
+                        <td>
+                            <a href="{% url 'quiz_result' session.id %}" class="btn btn-sm btn-outline-primary">
+                                View Details
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted">No quiz history yet. <a href="{% url 'exam_list' %}">Start your first quiz!</a></p>
+        {% endif %}
+    </div>
+</div>
+
+{% if recent_sessions %}
+<div class="card mt-4">
+    <div class="card-header">
+        <h5 class="mb-0">Performance Over Time</h5>
+    </div>
+    <div class="card-body">
+        <canvas id="performanceChart"></canvas>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Toggle Plan Features icon on click
+    function togglePlanFeaturesIcon() {
+        const icon = document.getElementById('planFeaturesIcon');
+        const collapseElement = document.getElementById('planFeaturesCollapse');
+        const bsCollapse = bootstrap.Collapse.getOrCreateInstance(collapseElement);
+        
+        // Toggle icon when collapse state changes
+        collapseElement.addEventListener('shown.bs.collapse', function () {
+            icon.className = 'bi bi-chevron-up float-end';
+        });
+        
+        collapseElement.addEventListener('hidden.bs.collapse', function () {
+            icon.className = 'bi bi-chevron-down float-end';
+        });
+    }
+</script>
+{% if recent_sessions %}
+<script>
+    const ctx = document.getElementById('performanceChart');
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: [{% for session in recent_sessions %}'{{ session.completed_at|date:"M d" }}'{% if not forloop.last %},{% endif %}{% endfor %}],
+            datasets: [{
+                label: 'Score (%)',
+                data: [{% for session in recent_sessions %}{{ session.score|floatformat:1 }}{% if not forloop.last %},{% endif %}{% endfor %}],
+                borderColor: 'rgba(54, 162, 235, 1)',
+                backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                tension: 0.4,
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 100
+                }
+            }
+        }
+    });
+</script>
+{% endif %}
+{% endblock %}
+

@@ -1,0 +1,143 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Edit Profile - ExamPrepQuiz{% endblock %}
+
+{% block content %}
+<h2 class="mb-4"><i class="bi bi-pencil-square"></i> Edit Profile</h2>
+
+<div class="row">
+    <div class="col-12 col-md-8 mb-4 mb-md-0">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Profile Information</h5>
+            </div>
+            <div class="card-body">
+                <form method="post" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    
+                    <!-- Profile Photo -->
+                    <div class="mb-4">
+                        <label class="form-label"><strong>Profile Photo</strong></label>
+                        <div class="mb-3">
+                            {% if user_profile.profile_photo %}
+                                <img src="{{ user_profile.profile_photo.url }}" alt="Current Photo" 
+                                     class="rounded-circle mb-2" style="width: 100px; height: 100px; object-fit: cover; border: 2px solid #dee2e6;">
+                                <br>
+                                <small class="text-muted">Current photo</small>
+                            {% else %}
+                                <i class="bi bi-person-circle" style="font-size: 5rem; color: #0d6efd;"></i>
+                                <br>
+                                <small class="text-muted">No photo uploaded</small>
+                            {% endif %}
+                        </div>
+                        <input type="file" class="form-control" name="profile_photo" accept="image/*" id="id_profile_photo">
+                        <small class="form-text text-muted">Upload a new profile photo (JPG, PNG, GIF - Max 5MB)</small>
+                    </div>
+                    
+                    <hr>
+                    
+                    <!-- User Information -->
+                    <div class="row mb-3">
+                        <div class="col-12 col-md-6 mb-3 mb-md-0">
+                            <label for="id_username" class="form-label"><strong>Username</strong></label>
+                            <input type="text" class="form-control" id="id_username" value="{{ user.username }}" disabled>
+                            <small class="form-text text-muted">Username cannot be changed</small>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label for="id_email" class="form-label"><strong>Email</strong></label>
+                            <input type="email" class="form-control" id="id_email" name="email" value="{{ user.email|default:'' }}" required>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-12 col-md-6 mb-3 mb-md-0">
+                            <label for="id_first_name" class="form-label"><strong>First Name</strong></label>
+                            <input type="text" class="form-control" id="id_first_name" name="first_name" value="{{ user.first_name|default:'' }}">
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label for="id_last_name" class="form-label"><strong>Last Name</strong></label>
+                            <input type="text" class="form-control" id="id_last_name" name="last_name" value="{{ user.last_name|default:'' }}">
+                        </div>
+                    </div>
+                    
+                    <!-- Action Buttons -->
+                    <div class="d-flex gap-2 mt-4">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-circle"></i> Save Changes
+                        </button>
+                        <a href="{% url 'profile' %}" class="btn btn-outline-secondary">
+                            <i class="bi bi-x-circle"></i> Cancel
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-12 col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">Profile Preview</h6>
+            </div>
+            <div class="card-body text-center">
+                <div id="photo-preview" class="mb-3">
+                    {% if user_profile.profile_photo %}
+                        <img src="{{ user_profile.profile_photo.url }}" alt="Preview" 
+                             class="rounded-circle" style="width: 120px; height: 120px; object-fit: cover; border: 3px solid #0d6efd;">
+                    {% else %}
+                        <i class="bi bi-person-circle" style="font-size: 5rem; color: #0d6efd;"></i>
+                    {% endif %}
+                </div>
+                <h5 id="name-preview">{{ user.get_full_name|default:user.username }}</h5>
+                <p class="text-muted" id="email-preview">{{ user.email|default:"No email provided" }}</p>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-body">
+                <h6 class="card-title">Tips</h6>
+                <ul class="small text-muted mb-0">
+                    <li>Profile photos should be square for best results</li>
+                    <li>Recommended size: 200x200 pixels or larger</li>
+                    <li>Supported formats: JPG, PNG, GIF</li>
+                    <li>Maximum file size: 5MB</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Preview profile photo when selected
+    document.getElementById('id_profile_photo').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const preview = document.getElementById('photo-preview');
+                preview.innerHTML = '<img src="' + e.target.result + '" alt="Preview" class="rounded-circle" style="width: 120px; height: 120px; object-fit: cover; border: 3px solid #0d6efd;">';
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+    
+    // Preview name changes
+    document.getElementById('id_first_name').addEventListener('input', updateNamePreview);
+    document.getElementById('id_last_name').addEventListener('input', updateNamePreview);
+    document.getElementById('id_email').addEventListener('input', function(e) {
+        document.getElementById('email-preview').textContent = e.target.value || 'No email provided';
+    });
+    
+    function updateNamePreview() {
+        const firstName = document.getElementById('id_first_name').value;
+        const lastName = document.getElementById('id_last_name').value;
+        const fullName = (firstName + ' ' + lastName).trim();
+        document.getElementById('name-preview').textContent = fullName || '{{ user.username }}';
+    }
+</script>
+{% endblock %}
+

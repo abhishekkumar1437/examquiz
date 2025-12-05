@@ -1,0 +1,199 @@
+{% extends 'base.html' %}
+
+{% block title %}Exams - ExamPrepQuiz{% endblock %}
+
+{% block content %}
+<h2 class="mb-4">
+    <i class="bi bi-journal-text"></i> 
+    {% if selected_category %}
+        {{ selected_exam_name }} - {{ selected_category.name }}
+    {% elif selected_exam_name %}
+        {{ selected_exam_name }} - Categories
+    {% else %}
+        Exam Names
+    {% endif %}
+</h2>
+
+{% if selected_category %}
+    <!-- Back to categories button -->
+    <div class="mb-3">
+        <a href="{% url 'exam_list' %}?exam_name={{ selected_exam_name|urlencode }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Back to Categories
+        </a>
+    </div>
+    
+    <!-- Back to exam names button -->
+    <div class="mb-3">
+        <a href="{% url 'exam_list' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Back to Exam Names
+        </a>
+    </div>
+    
+    <!-- Search form for exams -->
+    {% if exams_by_exam_name %}
+    <div class="row mb-4">
+        <div class="col-12 col-md-6">
+            <form method="get" class="mb-3">
+                <input type="hidden" name="category" value="{{ selected_category.id }}">
+                <input type="hidden" name="exam_name" value="{{ selected_exam_name }}">
+                <div class="input-group">
+                    <input type="text" class="form-control" name="search" placeholder="Search exams..." value="{{ search_query }}">
+                    <button class="btn btn-outline-secondary" type="submit">
+                        <i class="bi bi-search"></i>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Exams list for selected exam_name and category -->
+    {% if exams_by_exam_name %}
+        {% for exam_name, exam_list in exams_by_exam_name.items %}
+        <div class="mb-5">
+            <h4 class="mb-3 border-bottom pb-2">
+                <i class="bi bi-award-fill text-primary"></i> {{ exam_name }}
+                <small class="text-muted">({{ exam_list|length }} exam{{ exam_list|length|pluralize }})</small>
+            </h4>
+                <div class="row">
+                    {% for exam in exam_list %}
+                    <div class="col-12 col-md-6 mb-4">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div class="d-flex align-items-center">
+                                    <h5 class="card-title mb-0 me-2">{{ exam.name }}</h5>
+                                    {% if user.is_authenticated %}
+                                        {% if exam.completion_status == 'passed' %}
+                                            <i class="bi bi-check-circle-fill text-success" style="font-size: 1.5rem;" title="Completed - Passed"></i>
+                                        {% elif exam.completion_status == 'failed' %}
+                                            <i class="bi bi-x-circle-fill text-danger" style="font-size: 1.5rem;" title="Completed - Failed"></i>
+                                        {% endif %}
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <p class="card-text text-muted">{{ exam.description|truncatewords:30 }}</p>
+                            
+                            <!-- Topics/Sets -->
+                            {% if exam.topics.all %}
+                            <div class="mb-3">
+                                <small class="text-muted d-block mb-1"><strong>Topics/Sets:</strong></small>
+                                <div class="d-flex flex-wrap gap-2">
+                                    {% for topic in exam.topics.all %}
+                                    <span class="badge bg-info">{{ topic.name }}</span>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            {% endif %}
+                            
+                            <div class="mb-3">
+                                <small class="text-muted">
+                                    <i class="bi bi-question-circle"></i> {{ exam.question_count }} Questions |
+                                    <i class="bi bi-clock"></i> {{ exam.duration_minutes }} Minutes |
+                                    <i class="bi bi-trophy"></i> Passing: {{ exam.passing_score }}%
+                                </small>
+                            </div>
+                            {% if user.is_authenticated %}
+                            <a href="{% url 'quiz_start' exam.id %}" class="btn btn-primary">
+                                <i class="bi bi-play-circle"></i> Start Quiz
+                            </a>
+                            {% else %}
+                            <a href="{% url 'login' %}" class="btn btn-outline-primary">Login to Start</a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle"></i> 
+        {% if search_query %}
+            No exams found matching "{{ search_query }}". Try a different search term.
+        {% else %}
+            No exams available for {{ selected_exam_name }} in {{ selected_category.name }}.
+        {% endif %}
+    </div>
+    {% endif %}
+
+{% elif selected_exam_name %}
+    <!-- Back to exam names button -->
+    <div class="mb-3">
+        <a href="{% url 'exam_list' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Back to Exam Names
+        </a>
+    </div>
+    
+    <!-- Categories list for selected exam_name -->
+    {% if categories_list %}
+    <div class="row">
+        {% for category in categories_list %}
+        <div class="col-12 col-sm-6 col-md-4 mb-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="bi bi-folder-fill text-primary"></i> {{ category.name }}
+                    </h5>
+                    <p class="card-text text-muted">
+                        {% if category.description %}
+                            {{ category.description|truncatewords:20 }}
+                        {% else %}
+                            Browse exams in this category
+                        {% endif %}
+                    </p>
+                    <div class="mb-3">
+                        <small class="text-muted">
+                            <i class="bi bi-journal-text"></i> {{ category.exam_count }} Exam{{ category.exam_count|pluralize }} available
+                        </small>
+                    </div>
+                    <a href="{% url 'exam_list' %}?exam_name={{ selected_exam_name|urlencode }}&category={{ category.id }}" class="btn btn-primary">
+                        <i class="bi bi-arrow-right-circle"></i> View Exams
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle"></i> No categories available for {{ selected_exam_name }}.
+    </div>
+    {% endif %}
+
+{% else %}
+    <!-- Exam Names list -->
+    {% if exam_names_list %}
+    <div class="row">
+        {% for exam_name_item in exam_names_list %}
+        <div class="col-12 col-sm-6 col-md-4 mb-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="bi bi-award-fill text-primary"></i> {{ exam_name_item.name }}
+                    </h5>
+                    <p class="card-text text-muted">
+                        Browse all categories and exams for {{ exam_name_item.name }}
+                    </p>
+                    <div class="mb-3">
+                        <small class="text-muted">
+                            <i class="bi bi-journal-text"></i> {{ exam_name_item.count }} Exam{{ exam_name_item.count|pluralize }} available
+                        </small>
+                    </div>
+                    <a href="{% url 'exam_list' %}?exam_name={{ exam_name_item.name|urlencode }}" class="btn btn-primary">
+                        <i class="bi bi-arrow-right-circle"></i> View Categories
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle"></i> No exam names available.
+    </div>
+    {% endif %}
+{% endif %}
+{% endblock %}
+

@@ -1,0 +1,497 @@
+{% extends 'base.html' %}
+{% load quiz_filters %}
+
+{% block title %}Quiz Results - ExamPrepQuiz{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-{% if passed %}success{% else %}danger{% endif %} text-white">
+                <h4 class="mb-0">
+                    <i class="bi bi-{% if passed %}trophy{% else %}x-circle{% endif %}"></i>
+                    Quiz Results: {{ quiz_session.exam.name }}
+                </h4>
+            </div>
+            <div class="card-body">
+                <div class="row text-center mb-4">
+                    <div class="col-md-4">
+                        <h2 class="display-4 {% if passed %}text-success{% else %}text-danger{% endif %}">
+                            {{ correct_percentage }}%
+                        </h2>
+                        <p class="text-muted">Score ({{ correct_count }}/{{ total_questions }})</p>
+                        {% if unanswered_count > 0 %}
+                        <small class="text-warning">{{ unanswered_count }} unanswered</small>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-4">
+                        <h2 class="display-4 text-info">
+                            {{ attempted_questions }}/{{ total_questions }}
+                        </h2>
+                        <p class="text-muted">Questions Attempted</p>
+                    </div>
+                    <div class="col-md-4">
+                        <h2 class="display-4 text-primary">
+                            {{ quiz_session.time_taken_seconds|format_time }}
+                        </h2>
+                        <p class="text-muted">Time Taken</p>
+                    </div>
+                </div>
+
+                <div class="alert alert-{% if passed %}success{% else %}warning{% endif %}">
+                    <strong>{% if passed %}Congratulations!{% else %}Keep Practicing!{% endif %}</strong>
+                    You {% if passed %}passed{% else %}did not pass{% endif %} this quiz. 
+                    Passing score: {{ quiz_session.exam.passing_score }}%
+                </div>
+
+                <!-- Social Sharing Section -->
+                <div class="card mb-4 border-primary">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0"><i class="bi bi-share"></i> Share Your Results</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted mb-3">Share your quiz results on social media!</p>
+                        <div class="row g-2">
+                            <div class="col-6 col-md-4 col-lg-3">
+                                <a href="#" 
+                                   onclick="shareOnLinkedIn('{{ share_url|escapejs }}', '{{ share_message|escapejs }}'); return false;"
+                                   class="btn btn-outline-primary w-100 d-flex align-items-center justify-content-center"
+                                   title="Share on LinkedIn">
+                                    <i class="bi bi-linkedin me-2"></i> LinkedIn
+                                </a>
+                            </div>
+                            <div class="col-6 col-md-4 col-lg-3">
+                                <a href="https://www.facebook.com/sharer/sharer.php?u={{ share_url_encoded }}" 
+                                   target="_blank" 
+                                   class="btn btn-outline-primary w-100 d-flex align-items-center justify-content-center"
+                                   title="Share on Facebook">
+                                    <i class="bi bi-facebook me-2"></i> Facebook
+                                </a>
+                            </div>
+                            <div class="col-6 col-md-4 col-lg-3">
+                                <a href="https://twitter.com/intent/tweet?text={{ share_message_encoded }}&url={{ share_url_encoded }}" 
+                                   target="_blank" 
+                                   class="btn btn-outline-info w-100 d-flex align-items-center justify-content-center"
+                                   title="Share on Twitter/X">
+                                    <i class="bi bi-twitter-x me-2"></i> Twitter/X
+                                </a>
+                            </div>
+                            <div class="col-6 col-md-4 col-lg-3">
+                                <a href="https://wa.me/?text={{ share_message_encoded }}%20{{ share_url_encoded }}" 
+                                   target="_blank" 
+                                   class="btn btn-outline-success w-100 d-flex align-items-center justify-content-center"
+                                   title="Share on WhatsApp">
+                                    <i class="bi bi-whatsapp me-2"></i> WhatsApp
+                                </a>
+                            </div>
+                            <div class="col-6 col-md-4 col-lg-3">
+                                <a href="mailto:?subject={{ share_title_encoded }}&body={{ share_message_encoded }}%0D%0A%0D%0A{{ share_url_encoded }}" 
+                                   class="btn btn-outline-danger w-100 d-flex align-items-center justify-content-center"
+                                   title="Share via Email">
+                                    <i class="bi bi-envelope me-2"></i> Email
+                                </a>
+                            </div>
+                            <div class="col-6 col-md-4 col-lg-3">
+                                <button type="button" 
+                                        class="btn btn-outline-secondary w-100 d-flex align-items-center justify-content-center"
+                                        onclick="copyToClipboard('{{ share_message|escapejs }} {{ share_url|escapejs }}')"
+                                        title="Copy to Clipboard">
+                                    <i class="bi bi-clipboard me-2"></i> Copy Link
+                                </button>
+                            </div>
+                            <div class="col-6 col-md-4 col-lg-3">
+                                <button type="button" 
+                                        class="btn btn-outline-warning w-100 d-flex align-items-center justify-content-center"
+                                        data-bs-toggle="modal" 
+                                        data-bs-target="#instagramModal"
+                                        title="Share on Instagram">
+                                    <i class="bi bi-instagram me-2"></i> Instagram
+                                </button>
+                            </div>
+                        </div>
+                        <div class="alert alert-info mt-3 mb-0">
+                            <small><i class="bi bi-info-circle"></i> <strong>Note:</strong> Instagram doesn't support direct link sharing. Use the "Copy Link" button and paste it into your Instagram story or post.</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Instagram Modal -->
+                <div class="modal fade" id="instagramModal" tabindex="-1" aria-labelledby="instagramModalLabel" aria-hidden="true">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="instagramModalLabel">Share on Instagram</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <p>To share on Instagram:</p>
+                                <ol>
+                                    <li>Copy the text below</li>
+                                    <li>Open Instagram</li>
+                                    <li>Create a new post or story</li>
+                                    <li>Paste the text and add your screenshot</li>
+                                </ol>
+                                <div class="mb-3">
+                                    <label for="instagramText" class="form-label">Shareable Text:</label>
+                                    <textarea class="form-control" id="instagramText" rows="5" readonly>{{ share_message }}
+
+{{ share_url }}</textarea>
+                                </div>
+                                <button type="button" class="btn btn-primary" onclick="copyInstagramText()">
+                                    <i class="bi bi-clipboard"></i> Copy Text
+                                </button>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <h5 class="mb-3">Question Review</h5>
+                {% for user_answer in user_answers %}
+                <div class="card mb-3 border-{% if user_answer.is_correct %}success{% else %}danger{% endif %}">
+                    <div class="card-header bg-{% if user_answer.is_correct %}success{% else %}danger{% endif %} text-white">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span>
+                                <i class="bi bi-{% if user_answer.is_correct %}check-circle{% else %}x-circle{% endif %}"></i>
+                                Question {{ forloop.counter }}
+                            </span>
+                            <span class="badge bg-light text-dark">{{ user_answer.question.difficulty|title }}</span>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <p class="fw-bold">{{ user_answer.question.question_text }}</p>
+                        
+                        <div class="mb-2">
+                            <strong>Your Answer:</strong>
+                            <ul class="list-unstyled ms-3">
+                                {% for choice in user_answer.selected_choices.all %}
+                                <li>
+                                    <i class="bi bi-{% if choice.is_correct %}check text-success{% else %}x text-danger{% endif %}"></i>
+                                    {{ choice.choice_text }}
+                                </li>
+                                {% empty %}
+                                <li class="text-muted">No answer selected</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+
+                        <div class="mb-2">
+                            <strong>Correct Answer:</strong>
+                            <ul class="list-unstyled ms-3">
+                                {% for choice in user_answer.question.get_correct_choices %}
+                                <li>
+                                    <i class="bi bi-check-circle text-success"></i>
+                                    {{ choice.choice_text }}
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+
+                        {% if user_answer.question.explanation %}
+                        <div class="alert alert-info mt-2 mb-0">
+                            <strong>Explanation:</strong> {{ user_answer.question.explanation }}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+
+                <!-- More Button for All Questions -->
+                <div class="mt-4">
+                    <button class="btn btn-outline-primary w-100" type="button" data-bs-toggle="collapse" data-bs-target="#allQuestionsCollapse" aria-expanded="false" aria-controls="allQuestionsCollapse">
+                        <i class="bi bi-chevron-down"></i> Show All Questions with Explanations
+                    </button>
+                </div>
+
+                <!-- All Questions Collapse Section -->
+                <div class="collapse mt-3" id="allQuestionsCollapse">
+                    <!-- Correct Answers Section -->
+                    {% if correct_questions %}
+                    <div class="card mb-3 border-success">
+                        <div class="card-header bg-success text-white">
+                            <h5 class="mb-0">
+                                <i class="bi bi-check-circle"></i> Correct Answers ({{ correct_questions|length }})
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            {% for item in correct_questions %}
+                            <div class="mb-4 pb-3 {% if not forloop.last %}border-bottom{% endif %}">
+                                <p class="fw-bold">Q{{ forloop.counter }}: {{ item.question.question_text }}</p>
+                                <div class="mb-2">
+                                    <strong>Correct Answer:</strong>
+                                    <ul class="list-unstyled ms-3">
+                                        {% for choice in item.question.get_correct_choices %}
+                                        <li><i class="bi bi-check-circle text-success"></i> {{ choice.choice_text }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                </div>
+                                {% if item.question.explanation %}
+                                <div class="alert alert-info mt-2 mb-0">
+                                    <strong>Explanation:</strong> {{ item.question.explanation }}
+                                </div>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Incorrect Answers Section -->
+                    {% if incorrect_questions %}
+                    <div class="card mb-3 border-danger">
+                        <div class="card-header bg-danger text-white">
+                            <h5 class="mb-0">
+                                <i class="bi bi-x-circle"></i> Incorrect Answers ({{ incorrect_questions|length }})
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            {% for item in incorrect_questions %}
+                            <div class="mb-4 pb-3 {% if not forloop.last %}border-bottom{% endif %}">
+                                <p class="fw-bold">Q{{ forloop.counter }}: {{ item.question.question_text }}</p>
+                                <div class="mb-2">
+                                    <strong>Your Answer:</strong>
+                                    <ul class="list-unstyled ms-3">
+                                        {% for choice in item.selected_choices %}
+                                        <li><i class="bi bi-x-circle text-danger"></i> {{ choice.choice_text }}</li>
+                                        {% empty %}
+                                        <li class="text-muted">No answer selected</li>
+                                        {% endfor %}
+                                    </ul>
+                                </div>
+                                <div class="mb-2">
+                                    <strong>Correct Answer:</strong>
+                                    <ul class="list-unstyled ms-3">
+                                        {% for choice in item.question.get_correct_choices %}
+                                        <li><i class="bi bi-check-circle text-success"></i> {{ choice.choice_text }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                </div>
+                                {% if item.question.explanation %}
+                                <div class="alert alert-info mt-2 mb-0">
+                                    <strong>Explanation:</strong> {{ item.question.explanation }}
+                                </div>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Unattempted Questions Section -->
+                    {% if unattempted_questions %}
+                    <div class="card mb-3 border-warning">
+                        <div class="card-header bg-warning text-dark">
+                            <h5 class="mb-0">
+                                <i class="bi bi-question-circle"></i> Unattempted Questions ({{ unattempted_questions|length }})
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            {% for item in unattempted_questions %}
+                            <div class="mb-4 pb-3 {% if not forloop.last %}border-bottom{% endif %}">
+                                <p class="fw-bold">Q{{ forloop.counter }}: {{ item.question.question_text }}</p>
+                                <div class="mb-2">
+                                    <strong>Correct Answer:</strong>
+                                    <ul class="list-unstyled ms-3">
+                                        {% for choice in item.question.get_correct_choices %}
+                                        <li><i class="bi bi-check-circle text-success"></i> {{ choice.choice_text }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                </div>
+                                {% if item.question.explanation %}
+                                <div class="alert alert-info mt-2 mb-0">
+                                    <strong>Explanation:</strong> {{ item.question.explanation }}
+                                </div>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="card-footer">
+                <a href="{% url 'exam_list' %}" class="btn btn-primary">
+                    <i class="bi bi-list"></i> Browse More Exams
+                </a>
+                <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-speedometer2"></i> Dashboard
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        {% if difficulty_stats %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Performance by Difficulty</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="difficultyChart"></canvas>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if topic_stats %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Performance by Topic</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="topicChart"></canvas>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Quick Stats</h5>
+            </div>
+            <div class="card-body">
+                <p><strong>Total Questions:</strong> {{ total_questions }}</p>
+                <p><strong>Attempted:</strong> {{ attempted_questions }}</p>
+                <p><strong>Correct:</strong> <span class="text-success">{{ correct_count }}</span></p>
+                <p><strong>Incorrect:</strong> <span class="text-danger">{{ incorrect_count }}</span></p>
+                {% if unanswered_count > 0 %}
+                <p><strong>Unanswered:</strong> <span class="text-warning">{{ unanswered_count }}</span></p>
+                {% endif %}
+                <p><strong>Score:</strong> {{ correct_percentage }}% ({{ correct_count }}/{{ total_questions }})</p>
+                <p><strong>Accuracy:</strong> {{ accuracy_percentage }}% ({{ correct_count }}/{{ attempted_questions }} attempted)</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    {% if difficulty_stats %}
+    const difficultyCtx = document.getElementById('difficultyChart');
+    new Chart(difficultyCtx, {
+        type: 'bar',
+        data: {
+            labels: [{% for diff, stats in difficulty_stats.items %}'{{ diff|title }}'{% if not forloop.last %},{% endif %}{% endfor %}],
+            datasets: [{
+                label: 'Accuracy (%)',
+                data: [{% for diff, stats in difficulty_stats.items %}{{ stats.percentage }}{% if not forloop.last %},{% endif %}{% endfor %}],
+                backgroundColor: [
+                    'rgba(75, 192, 192, 0.6)',
+                    'rgba(255, 206, 86, 0.6)',
+                    'rgba(255, 99, 132, 0.6)'
+                ],
+                borderColor: [
+                    'rgba(75, 192, 192, 1)',
+                    'rgba(255, 206, 86, 1)',
+                    'rgba(255, 99, 132, 1)'
+                ],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 100
+                }
+            }
+        }
+    });
+    {% endif %}
+
+    {% if topic_stats %}
+    const topicCtx = document.getElementById('topicChart');
+    new Chart(topicCtx, {
+        type: 'pie',
+        data: {
+            labels: [{% for topic, stats in topic_stats.items %}'{{ topic }}'{% if not forloop.last %},{% endif %}{% endfor %}],
+            datasets: [{
+                data: [{% for topic, stats in topic_stats.items %}{{ stats.percentage }}{% if not forloop.last %},{% endif %}{% endfor %}],
+                backgroundColor: [
+                    'rgba(54, 162, 235, 0.6)',
+                    'rgba(255, 99, 132, 0.6)',
+                    'rgba(255, 206, 86, 0.6)',
+                    'rgba(75, 192, 192, 0.6)',
+                    'rgba(153, 102, 255, 0.6)'
+                ]
+            }]
+        },
+        options: {
+            responsive: true
+        }
+    });
+    {% endif %}
+
+    // Share on LinkedIn
+    function shareOnLinkedIn(url, summary) {
+        // LinkedIn share URL - only include URL, let LinkedIn fetch metadata
+        const linkedInUrl = 'https://www.linkedin.com/sharing/share-offsite/?url=' + encodeURIComponent(url);
+        window.open(linkedInUrl, 'linkedin-share', 'width=600,height=400');
+    }
+
+    // Copy text to clipboard
+    function copyToClipboard(text) {
+        navigator.clipboard.writeText(text).then(function() {
+            // Show success message
+            const btn = event.target.closest('button');
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = '<i class="bi bi-check-circle me-2"></i> Copied!';
+            btn.classList.remove('btn-outline-secondary');
+            btn.classList.add('btn-success');
+            
+            setTimeout(function() {
+                btn.innerHTML = originalHTML;
+                btn.classList.remove('btn-success');
+                btn.classList.add('btn-outline-secondary');
+            }, 2000);
+        }, function(err) {
+            // Fallback for older browsers
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            textArea.style.position = 'fixed';
+            textArea.style.top = '-9999px';
+            document.body.appendChild(textArea);
+            textArea.select();
+            
+            try {
+                document.execCommand('copy');
+                const btn = event.target.closest('button');
+                const originalHTML = btn.innerHTML;
+                btn.innerHTML = '<i class="bi bi-check-circle me-2"></i> Copied!';
+                btn.classList.remove('btn-outline-secondary');
+                btn.classList.add('btn-success');
+                
+                setTimeout(function() {
+                    btn.innerHTML = originalHTML;
+                    btn.classList.remove('btn-success');
+                    btn.classList.add('btn-outline-secondary');
+                }, 2000);
+            } catch (err) {
+                alert('Failed to copy. Please copy manually.');
+            }
+            
+            document.body.removeChild(textArea);
+        });
+    }
+    
+    // Copy Instagram text
+    function copyInstagramText() {
+        const textArea = document.getElementById('instagramText');
+        textArea.select();
+        textArea.setSelectionRange(0, 99999); // For mobile devices
+        
+        try {
+            document.execCommand('copy');
+            alert('Text copied to clipboard! You can now paste it in Instagram.');
+        } catch (err) {
+            navigator.clipboard.writeText(textArea.value).then(function() {
+                alert('Text copied to clipboard! You can now paste it in Instagram.');
+            }, function(err) {
+                alert('Failed to copy. Please select and copy manually.');
+            });
+        }
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,781 @@
+{% extends 'base.html' %}
+
+{% block title %}Quiz Question - ExamPrepQuiz{% endblock %}
+
+{% block extra_css %}
+<style>
+    .progress-container {
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        background: white;
+        padding: 1rem 0;
+        border-bottom: 2px solid #e9ecef;
+    }
+    .question-card {
+        min-height: 400px;
+    }
+    .quiz-timer {
+        display: inline-flex;
+        flex-direction: column;
+        align-items: center;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 8px 15px;
+        border-radius: 6px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        font-weight: bold;
+        text-align: center;
+        min-width: 70px;
+    }
+    .quiz-timer.warning {
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        animation: pulse 1s infinite;
+    }
+    .quiz-timer.danger {
+        background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+        animation: blink 0.5s infinite;
+    }
+    @keyframes pulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+    }
+    @keyframes blink {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.7; }
+    }
+    .quiz-timer.paused {
+        background: linear-gradient(135deg, #868e96 0%, #495057 100%);
+        opacity: 0.7;
+    }
+    .timer-status {
+        font-size: 0.5rem;
+        opacity: 0.9;
+        margin-top: 2px;
+        line-height: 1;
+        text-transform: uppercase;
+        font-weight: bold;
+    }
+    .timer-label {
+        font-size: 0.65rem;
+        opacity: 0.9;
+        margin-bottom: 2px;
+        line-height: 1;
+    }
+    .timer-value {
+        font-size: 1rem;
+        font-family: 'Courier New', monospace;
+        line-height: 1.2;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-9">
+<div class="progress-container mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <h5>{{ quiz_session.exam.name }}</h5>
+        <div class="d-flex align-items-center gap-3">
+            <span class="badge bg-info">Question {{ question_num }} of {{ total_questions }}</span>
+            <!-- Timer Display -->
+            <div class="d-flex align-items-center gap-2">
+                <div class="quiz-timer {% if is_paused %}paused{% endif %}" id="quizTimer">
+                    <div class="timer-label">Time Remaining</div>
+                    <div class="timer-value" id="timerValue">--:--</div>
+                    {% if is_paused %}
+                    <div class="timer-status">PAUSED</div>
+                    {% endif %}
+                </div>
+                <button type="button" 
+                        class="btn btn-sm {% if is_paused %}btn-success{% else %}btn-warning{% endif %}" 
+                        id="pauseBtn"
+                        onclick="togglePause()"
+                        title="{% if is_paused %}Resume Quiz{% else %}Pause Quiz{% endif %}">
+                    <i class="bi bi-{% if is_paused %}play{% else %}pause{% endif %}-fill"></i>
+                    <span id="pauseBtnText">{% if is_paused %}Resume{% else %}Pause{% endif %}</span>
+                </button>
+            </div>
+        </div>
+    </div>
+    <div class="progress" style="height: 25px;">
+        <div class="progress-bar" role="progressbar" style="width: {{ progress }}%">{{ progress|floatformat:0 }}%</div>
+    </div>
+</div>
+
+<div class="card question-card">
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">
+            <span class="badge bg-light text-dark me-2">{{ question.difficulty|title }}</span>
+            Question {{ question_num }}
+        </h5>
+        <div class="d-flex gap-2">
+            <button type="button" 
+                    class="btn btn-sm btn-info text-white" 
+                    id="aiAssistantBtn"
+                    onclick="toggleAIChat()"
+                    title="Ask AI Assistant for help">
+                <i class="bi bi-robot"></i> AI Assistant
+            </button>
+            <button type="button" 
+                    class="btn btn-sm {% if is_bookmarked %}btn-warning{% else %}btn-light{% endif %}" 
+                    id="bookmarkBtn"
+                    onclick="toggleBookmark({{ question.id }})"
+                    title="{% if is_bookmarked %}Remove bookmark{% else %}Bookmark this question{% endif %}">
+                <i class="bi bi-{% if is_bookmarked %}bookmark-fill{% else %}bookmark{% endif %}"></i>
+                <span id="bookmarkText">{% if is_bookmarked %}Bookmarked{% else %}Bookmark{% endif %}</span>
+            </button>
+        </div>
+    </div>
+    <div class="card-body">
+        <p class="lead mb-4">{{ question.question_text }}</p>
+        
+        <form id="answerForm">
+            {% csrf_token %}
+            <input type="hidden" name="question_id" value="{{ question.id }}">
+            
+            {% if question.question_type == 'true_false' %}
+            <div class="form-check mb-3">
+                <input class="form-check-input" type="radio" name="choice_ids[]" id="choice_true" value="{{ choices.0.id }}" {% if choices.0.id in selected_choice_ids %}checked{% endif %}>
+                <label class="form-check-label" for="choice_true">
+                    {{ choices.0.choice_text }}
+                </label>
+            </div>
+            <div class="form-check mb-3">
+                <input class="form-check-input" type="radio" name="choice_ids[]" id="choice_false" value="{{ choices.1.id }}" {% if choices.1.id in selected_choice_ids %}checked{% endif %}>
+                <label class="form-check-label" for="choice_false">
+                    {{ choices.1.choice_text }}
+                </label>
+            </div>
+            {% elif question.question_type == 'single' %}
+            {% for choice in choices %}
+            <div class="form-check mb-3">
+                <input class="form-check-input" type="radio" name="choice_ids[]" id="choice_{{ choice.id }}" value="{{ choice.id }}" {% if choice.id in selected_choice_ids %}checked{% endif %}>
+                <label class="form-check-label" for="choice_{{ choice.id }}">
+                    {{ choice.choice_text }}
+                </label>
+            </div>
+            {% endfor %}
+            {% else %}
+            {% for choice in choices %}
+            <div class="form-check mb-3">
+                <input class="form-check-input" type="checkbox" name="choice_ids[]" id="choice_{{ choice.id }}" value="{{ choice.id }}" {% if choice.id in selected_choice_ids %}checked{% endif %}>
+                <label class="form-check-label" for="choice_{{ choice.id }}">
+                    {{ choice.choice_text }}
+                </label>
+            </div>
+            {% endfor %}
+            {% endif %}
+        </form>
+    </div>
+    <div class="card-footer">
+        <div class="d-flex justify-content-between">
+            {% if question_num > 1 %}
+            <a href="{% url 'quiz_question' quiz_session.id question_num|add:'-1' %}" class="btn btn-secondary" onclick="saveAnswerBeforeNavigate(event, this.href); return false;">
+                <i class="bi bi-arrow-left"></i> Previous
+            </a>
+            {% else %}
+            <div></div>
+            {% endif %}
+            
+            <div>
+                <button type="button" class="btn btn-success me-2" onclick="saveAnswer()">
+                    <i class="bi bi-save"></i> Save Answer
+                </button>
+                {% if question_num < total_questions %}
+                <a href="{% url 'quiz_question' quiz_session.id question_num|add:'1' %}" class="btn btn-primary" onclick="saveAnswerAndContinue(event)">
+                    Next <i class="bi bi-arrow-right"></i>
+                </a>
+                {% else %}
+                <a href="{% url 'quiz_result' quiz_session.id %}" class="btn btn-primary" onclick="saveAnswerAndSubmit(event)">
+                    Submit Quiz <i class="bi bi-check-circle"></i>
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+    </div>
+    
+    <!-- Question Navigation Sidebar -->
+    <div class="col-md-3">
+        <div class="card sticky-top" style="top: 80px; max-height: calc(100vh - 100px); overflow-y: auto;">
+            <div class="card-header bg-info text-white">
+                <h6 class="mb-0">
+                    <i class="bi bi-list-ol"></i> Questions
+                    <button type="button" class="btn btn-sm btn-light float-end" data-bs-toggle="collapse" data-bs-target="#questionNav" aria-expanded="true">
+                        <i class="bi bi-chevron-down"></i>
+                    </button>
+                </h6>
+            </div>
+            <div class="collapse show" id="questionNav">
+                <div class="card-body p-2">
+                    <div class="d-grid gap-1" style="grid-template-columns: repeat(5, 1fr);">
+                        {% for nav_item in question_navigation %}
+                        <a href="{% url 'quiz_question' quiz_session.id nav_item.number %}" 
+                           class="btn btn-sm position-relative 
+                                  {% if nav_item.is_current %}btn-primary
+                                  {% elif nav_item.is_bookmarked %}btn-warning
+                                  {% elif nav_item.is_answered %}btn-success
+                                  {% else %}btn-outline-secondary{% endif %}"
+                           title="Question {{ nav_item.number }}{% if nav_item.is_bookmarked %} (Bookmarked){% endif %}"
+                           onclick="saveAnswerBeforeNavigate(event, this.href); return false;">
+                            {{ nav_item.number }}
+                            {% if nav_item.is_bookmarked %}
+                            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-warning" style="font-size: 0.5rem;">
+                                <i class="bi bi-bookmark-fill"></i>
+                            </span>
+                            {% endif %}
+                        </a>
+                        {% endfor %}
+                    </div>
+                    <hr class="my-2">
+                    <div class="small">
+                        <div class="d-flex align-items-center mb-1">
+                            <span class="badge bg-primary me-2" style="width: 20px; height: 20px;"></span>
+                            <span>Current</span>
+                        </div>
+                        <div class="d-flex align-items-center mb-1">
+                            <span class="badge bg-warning me-2" style="width: 20px; height: 20px;"></span>
+                            <span>Bookmarked</span>
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <span class="badge bg-outline-secondary border me-2" style="width: 20px; height: 20px;"></span>
+                            <span>Not Answered</span>
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <button type="button" 
+                                class="btn btn-sm btn-outline-primary w-100" 
+                                data-bs-toggle="modal" 
+                                data-bs-target="#bookmarkedQuestionsModal">
+                            <i class="bi bi-bookmark-fill"></i> View Bookmarked
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Bookmarked Questions Modal -->
+        <div class="modal fade" id="bookmarkedQuestionsModal" tabindex="-1" aria-labelledby="bookmarkedQuestionsModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header bg-warning">
+                        <h5 class="modal-title" id="bookmarkedQuestionsModalLabel">
+                            <i class="bi bi-bookmark-fill"></i> Bookmarked Questions
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        {% if question_navigation %}
+                        <div class="list-group">
+                            {% for nav_item in question_navigation %}
+                            {% if nav_item.is_bookmarked %}
+                            <a href="{% url 'quiz_question' quiz_session.id nav_item.number %}" 
+                               class="list-group-item list-group-item-action {% if nav_item.is_current %}active{% endif %}"
+                               onclick="saveAnswerBeforeNavigate(event, this.href); return false;">
+                                <div class="d-flex w-100 justify-content-between">
+                                    <h6 class="mb-1">
+                                        <i class="bi bi-bookmark-fill text-warning"></i> Question {{ nav_item.number }}
+                                    </h6>
+                                    <span class="badge {% if nav_item.is_answered %}bg-success{% else %}bg-secondary{% endif %}">
+                                        {% if nav_item.is_answered %}Answered{% else %}Not Answered{% endif %}
+                                    </span>
+                                </div>
+                                <small class="text-muted">Click to navigate to this question</small>
+                            </a>
+                            {% endif %}
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <p class="text-muted text-center">No bookmarked questions yet. Use the bookmark button to save questions for review.</p>
+                        {% endif %}
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- AI Assistant Chat Modal -->
+<div class="modal fade" id="aiChatModal" tabindex="-1" aria-labelledby="aiChatModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title" id="aiChatModalLabel">
+                    <i class="bi bi-robot"></i> AI Study Assistant
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-0" style="height: 500px; display: flex; flex-direction: column;">
+                <div id="aiChatMessages" class="p-3 overflow-auto" style="flex: 1; background-color: #f8f9fa;">
+                    <div class="alert alert-info mb-3">
+                        <i class="bi bi-info-circle"></i> <strong>How I can help:</strong><br>
+                        - Explain concepts and definitions<br>
+                        - Help you understand the question better<br>
+                        - Provide study tips and guidance<br><br>
+                        <small>Note: I won't reveal the correct answer, but I'll help you learn!</small>
+                    </div>
+                    <div class="chat-message bot-message mb-3">
+                        <div class="d-flex align-items-start">
+                            <div class="bg-info text-white rounded-circle p-2 me-2" style="width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;">
+                                <i class="bi bi-robot"></i>
+                            </div>
+                            <div class="flex-grow-1">
+                                <div class="bg-white rounded p-3 shadow-sm">
+                                    <p class="mb-0">Hello! I'm your AI study assistant. Ask me anything about the current question or the topic, and I'll help you understand it better. Remember, I'm here to guide your learning, not to give away answers!</p>
+                                </div>
+                                <small class="text-muted">AI Assistant</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="border-top p-3">
+                    <div class="input-group">
+                        <input type="text" 
+                               class="form-control" 
+                               id="aiChatInput" 
+                               placeholder="Ask a question about the topic or question..."
+                               onkeypress="handleAIChatKeyPress(event)">
+                        <button class="btn btn-info text-white" 
+                                type="button" 
+                                id="aiSendBtn"
+                                onclick="sendAIMessage()">
+                            <i class="bi bi-send"></i> Send
+                        </button>
+                    </div>
+                    <small class="text-muted d-block mt-2">
+                        <i class="bi bi-lightbulb"></i> Tip: Ask about concepts, definitions, or request explanations
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Timer functionality
+    let remainingSeconds = {{ remaining_time_seconds }};
+    let timerInterval;
+    let isPaused = {{ is_paused|yesno:"true,false" }};
+    const timerElement = document.getElementById('timerValue');
+    const timerContainer = document.getElementById('quizTimer');
+    const pauseBtn = document.getElementById('pauseBtn');
+    const sessionId = {{ quiz_session.id }};
+    
+    function formatTime(seconds) {
+        const minutes = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    }
+    
+    function updateTimer() {
+        if (isPaused) {
+            return; // Don't update timer if paused
+        }
+        
+        if (remainingSeconds <= 0) {
+            clearInterval(timerInterval);
+            timerElement.textContent = '00:00';
+            autoSubmitQuiz();
+            return;
+        }
+        
+        timerElement.textContent = formatTime(remainingSeconds);
+        
+        // Change styling based on time remaining
+        timerContainer.classList.remove('warning', 'danger');
+        if (remainingSeconds <= 60) {
+            // Less than 1 minute - red/danger
+            timerContainer.classList.add('danger');
+        } else if (remainingSeconds <= 300) {
+            // Less than 5 minutes - warning
+            timerContainer.classList.add('warning');
+        }
+        
+        remainingSeconds--;
+    }
+    
+    function autoSubmitQuiz() {
+        // Save current answer before submitting
+        saveAnswer();
+        
+        // Show warning message
+        const alert = document.createElement('div');
+        alert.className = 'alert alert-warning alert-dismissible fade show position-fixed top-0 start-50 translate-middle-x mt-3';
+        alert.style.zIndex = '9999';
+        alert.innerHTML = '<i class="bi bi-exclamation-triangle"></i> Time is up! Submitting your quiz automatically... <button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
+        document.body.appendChild(alert);
+        
+        // Redirect to results page after a short delay
+        setTimeout(() => {
+            window.location.href = "{% url 'quiz_result' quiz_session.id %}";
+        }, 1500);
+    }
+    
+    function togglePause() {
+        const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        
+        if (isPaused) {
+            // Resume quiz
+            fetch(`/quiz/${sessionId}/resume/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrftoken,
+                    'Content-Type': 'application/json',
+                },
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    isPaused = false;
+                    timerContainer.classList.remove('paused');
+                    pauseBtn.className = 'btn btn-sm btn-warning';
+                    pauseBtn.innerHTML = '<i class="bi bi-pause-fill"></i> <span id="pauseBtnText">Pause</span>';
+                    
+                    // Remove paused status text if it exists
+                    const statusElement = timerContainer.querySelector('.timer-status');
+                    if (statusElement) {
+                        statusElement.remove();
+                    }
+                    
+                    // Update remaining time from server
+                    if (data.remaining_time !== undefined) {
+                        remainingSeconds = data.remaining_time;
+                        updateTimer();
+                    }
+                    
+                    // Restart timer
+                    if (!timerInterval) {
+                        timerInterval = setInterval(updateTimer, 1000);
+                    }
+                } else {
+                    alert('Error resuming quiz: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error resuming quiz. Please try again.');
+            });
+        } else {
+            // Pause quiz
+            fetch(`/quiz/${sessionId}/pause/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrftoken,
+                    'Content-Type': 'application/json',
+                },
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    isPaused = true;
+                    timerContainer.classList.add('paused');
+                    pauseBtn.className = 'btn btn-sm btn-success';
+                    pauseBtn.innerHTML = '<i class="bi bi-play-fill"></i> <span id="pauseBtnText">Resume</span>';
+                    
+                    // Add paused status text
+                    const statusElement = document.createElement('div');
+                    statusElement.className = 'timer-status';
+                    statusElement.textContent = 'PAUSED';
+                    timerContainer.appendChild(statusElement);
+                    
+                    // Stop timer
+                    if (timerInterval) {
+                        clearInterval(timerInterval);
+                        timerInterval = null;
+                    }
+                } else {
+                    alert('Error pausing quiz: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error pausing quiz. Please try again.');
+            });
+        }
+    }
+    
+    // Start the timer only if not paused
+    updateTimer(); // Initial update
+    if (!isPaused) {
+        timerInterval = setInterval(updateTimer, 1000);
+    }
+    
+    // Clean up timer when page unloads - pause quiz if not already paused
+    window.addEventListener('beforeunload', function() {
+        if (timerInterval) {
+            clearInterval(timerInterval);
+        }
+        // Auto-pause when leaving page if not already paused
+        if (!isPaused) {
+            const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]');
+            if (csrftoken) {
+                navigator.sendBeacon(`/quiz/${sessionId}/pause/`, new FormData());
+            }
+        }
+    });
+
+    function saveAnswer() {
+        const form = document.getElementById('answerForm');
+        const formData = new FormData(form);
+        
+        fetch("{% url 'quiz_submit_answer' quiz_session.id %}", {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const alert = document.createElement('div');
+                alert.className = 'alert alert-success alert-dismissible fade show position-fixed top-0 start-50 translate-middle-x mt-3';
+                alert.style.zIndex = '9999';
+                alert.innerHTML = '<i class="bi bi-check-circle"></i> Answer saved! <button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
+                document.body.appendChild(alert);
+                setTimeout(() => alert.remove(), 3000);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            // Don't show alert if page is unloading
+        });
+    }
+
+    function saveAnswerAndContinue(event) {
+        event.preventDefault();
+        saveAnswer();
+        setTimeout(() => {
+            window.location.href = event.target.closest('a').href;
+        }, 500);
+    }
+
+    function saveAnswerAndSubmit(event) {
+        event.preventDefault();
+        clearInterval(timerInterval); // Stop timer
+        saveAnswer();
+        setTimeout(() => {
+            window.location.href = event.target.closest('a').href;
+        }, 500);
+    }
+
+    // Save answer before navigating to another question
+    function saveAnswerBeforeNavigate(event, targetUrl) {
+        event.preventDefault();
+        // Save current answer
+        const form = document.getElementById('answerForm');
+        const formData = new FormData(form);
+        
+        fetch("{% url 'quiz_submit_answer' quiz_session.id %}", {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            // Navigate to target URL after saving
+            window.location.href = targetUrl;
+        })
+        .catch(error => {
+            console.error('Error saving answer:', error);
+            // Still navigate even if save fails
+            window.location.href = targetUrl;
+        });
+    }
+
+    // Toggle bookmark
+    function toggleBookmark(questionId) {
+        fetch(`/bookmarks/toggle/${questionId}/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'Content-Type': 'application/json',
+            },
+        })
+        .then(response => response.json())
+        .then(data => {
+            const btn = document.getElementById('bookmarkBtn');
+            const icon = btn.querySelector('i');
+            const text = document.getElementById('bookmarkText');
+            
+            if (data.bookmarked) {
+                btn.classList.remove('btn-light');
+                btn.classList.add('btn-warning');
+                icon.className = 'bi bi-bookmark-fill';
+                text.textContent = 'Bookmarked';
+                btn.title = 'Remove bookmark';
+            } else {
+                btn.classList.remove('btn-warning');
+                btn.classList.add('btn-light');
+                icon.className = 'bi bi-bookmark';
+                text.textContent = 'Bookmark';
+                btn.title = 'Bookmark this question';
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+        });
+    }
+
+    // AI Assistant functions
+    function toggleAIChat() {
+        const modal = new bootstrap.Modal(document.getElementById('aiChatModal'));
+        modal.show();
+    }
+
+    function handleAIChatKeyPress(event) {
+        if (event.key === 'Enter') {
+            sendAIMessage();
+        }
+    }
+
+    function sendAIMessage() {
+        const input = document.getElementById('aiChatInput');
+        const message = input.value.trim();
+        
+        if (!message) return;
+        
+        const messagesContainer = document.getElementById('aiChatMessages');
+        const sendBtn = document.getElementById('aiSendBtn');
+        
+        // Disable input and button
+        input.disabled = true;
+        sendBtn.disabled = true;
+        sendBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Sending...';
+        
+        // Add user message
+        addChatMessage(message, 'user');
+        input.value = '';
+        
+        // Show typing indicator
+        const typingId = addChatMessage('Thinking...', 'bot', true);
+        
+        // Send to backend
+        fetch("{% url 'ai_assistant' quiz_session.id question.id %}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            body: JSON.stringify({
+                message: message
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            // Remove typing indicator
+            document.getElementById(typingId)?.remove();
+            
+            if (data.success && data.response) {
+                addChatMessage(data.response, 'bot');
+            } else {
+                addChatMessage(data.response || data.error || 'Sorry, I encountered an error. Please try again.', 'bot');
+            }
+        })
+        .catch(error => {
+            // Remove typing indicator
+            document.getElementById(typingId)?.remove();
+            addChatMessage('Sorry, I encountered an error. Please try again later.', 'bot');
+            console.error('Error:', error);
+        })
+        .finally(() => {
+            // Re-enable input and button
+            input.disabled = false;
+            sendBtn.disabled = false;
+            sendBtn.innerHTML = '<i class="bi bi-send"></i> Send';
+            input.focus();
+        });
+    }
+
+    function addChatMessage(message, sender, isTyping = false) {
+        const messagesContainer = document.getElementById('aiChatMessages');
+        const messageId = 'msg-' + Date.now();
+        
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `chat-message ${sender}-message mb-3`;
+        messageDiv.id = messageId;
+        
+        if (sender === 'user') {
+            messageDiv.innerHTML = `
+                <div class="d-flex align-items-start justify-content-end">
+                    <div class="flex-grow-1 me-2" style="max-width: 75%;">
+                        <div class="bg-primary text-white rounded p-3 shadow-sm">
+                            <p class="mb-0">${escapeHtml(message)}</p>
+                        </div>
+                        <small class="text-muted d-block text-end">You</small>
+                    </div>
+                    <div class="bg-primary text-white rounded-circle p-2" style="width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;">
+                        <i class="bi bi-person"></i>
+                    </div>
+                </div>
+            `;
+        } else {
+            const typingClass = isTyping ? 'typing-indicator' : '';
+            messageDiv.innerHTML = `
+                <div class="d-flex align-items-start">
+                    <div class="bg-info text-white rounded-circle p-2 me-2" style="width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;">
+                        <i class="bi bi-robot"></i>
+                    </div>
+                    <div class="flex-grow-1">
+                        <div class="bg-white rounded p-3 shadow-sm ${typingClass}">
+                            <p class="mb-0">${escapeHtml(message)}</p>
+                        </div>
+                        <small class="text-muted">AI Assistant</small>
+                    </div>
+                </div>
+            `;
+        }
+        
+        messagesContainer.appendChild(messageDiv);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        
+        return messageId;
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // Initialize AI chat modal when opened
+    document.getElementById('aiChatModal').addEventListener('shown.bs.modal', function () {
+        document.getElementById('aiChatInput').focus();
+    });
+</script>
+<style>
+    .chat-message {
+        animation: fadeIn 0.3s ease-in;
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .typing-indicator {
+        position: relative;
+    }
+    
+    .typing-indicator::after {
+        content: '...';
+        animation: dots 1.5s steps(4, end) infinite;
+    }
+    
+    @keyframes dots {
+        0%, 20% { content: '.'; }
+        40% { content: '..'; }
+        60%, 100% { content: '...'; }
+    }
+</style>
+{% endblock %}
+

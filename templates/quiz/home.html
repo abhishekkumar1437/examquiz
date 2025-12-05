@@ -1,0 +1,136 @@
+{% extends 'base.html' %}
+
+{% block title %}Home - ExamPrepQuiz{% endblock %}
+
+{% block content %}
+<div class="hero-section text-center py-5 mb-5 bg-light rounded">
+    <h1 class="display-4 fw-bold">Welcome to ExamPrepQuiz</h1>
+    <p class="lead">Practice makes perfect. Prepare for your exams with our comprehensive quiz platform.</p>
+    <a href="{% url 'exam_list' %}" class="btn btn-primary btn-lg mt-3">Browse Exams</a>
+</div>
+
+<div class="row mb-5">
+    <div class="col-12 col-md-4 mb-4">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <i class="bi bi-book-fill text-primary" style="font-size: 3rem;"></i>
+                <h5 class="card-title mt-3">Multiple Categories</h5>
+                <p class="card-text">Choose from various exam categories including Math, English, Biology, and more.</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-4 mb-4">
+        <div class="card h-100">
+            {% if user.is_authenticated and recent_sessions %}
+            <div class="card-header">
+                <h5 class="mb-0">Performance Over Time</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="homePerformanceChart"></canvas>
+            </div>
+            {% else %}
+            <div class="card-body text-center">
+                <i class="bi bi-graph-up text-success" style="font-size: 3rem;"></i>
+                <h5 class="card-title mt-3">Track Progress</h5>
+                <p class="card-text">Monitor your performance with detailed analytics and progress tracking.</p>
+                {% if not user.is_authenticated %}
+                <a href="{% url 'login' %}" class="btn btn-sm btn-outline-success mt-2">Login to View</a>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    <div class="col-12 col-md-4 mb-4">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <i class="bi bi-check-circle-fill text-info" style="font-size: 3rem;"></i>
+                <h5 class="card-title mt-3">Instant Feedback</h5>
+                <p class="card-text">Get immediate results with detailed explanations for each question.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if exam_names_list %}
+<h3 class="mb-4">Browse by Exam Name</h3>
+<div class="row">
+    {% for exam_name_item in exam_names_list %}
+    <div class="col-12 col-sm-6 col-md-4 mb-3">
+        <div class="card h-100 shadow-sm">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="bi bi-award-fill text-primary"></i> {{ exam_name_item.name }}
+                </h5>
+                <p class="card-text text-muted">
+                    Browse all categories and exams for {{ exam_name_item.name }}
+                </p>
+                <div class="mb-3">
+                    <small class="text-muted">
+                        <i class="bi bi-journal-text"></i> {{ exam_name_item.count }} Exam{{ exam_name_item.count|pluralize }} available
+                    </small>
+                </div>
+                <a href="{% url 'exam_list' %}?exam_name={{ exam_name_item.name|urlencode }}" class="btn btn-sm btn-primary">
+                    <i class="bi bi-arrow-right-circle"></i> View Categories
+                </a>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% if recent_exams %}
+<h3 class="mb-4 mt-5">Recent Exams</h3>
+<div class="row">
+    {% for exam in recent_exams %}
+    <div class="col-12 col-sm-6 col-md-4 mb-3">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">{{ exam.name }}</h5>
+                <p class="card-text text-muted">{{ exam.category.name }}</p>
+                <p class="card-text">{{ exam.description|truncatewords:15 }}</p>
+                {% if user.is_authenticated %}
+                <a href="{% url 'quiz_start' exam.id %}" class="btn btn-sm btn-primary">Start Quiz</a>
+                {% else %}
+                <a href="{% url 'login' %}" class="btn btn-sm btn-outline-primary">Login to Start</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+{% if user.is_authenticated and recent_sessions %}
+<script>
+    const homeCtx = document.getElementById('homePerformanceChart');
+    new Chart(homeCtx, {
+        type: 'line',
+        data: {
+            labels: [{% for session in recent_sessions %}'{{ session.completed_at|date:"M d" }}'{% if not forloop.last %},{% endif %}{% endfor %}],
+            datasets: [{
+                label: 'Score (%)',
+                data: [{% for session in recent_sessions %}{{ session.score|floatformat:1 }}{% if not forloop.last %},{% endif %}{% endfor %}],
+                borderColor: 'rgba(54, 162, 235, 1)',
+                backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                tension: 0.4,
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 100
+                }
+            }
+        }
+    });
+</script>
+{% endif %}
+{% endblock %}
+
